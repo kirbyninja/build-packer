@@ -9,11 +9,8 @@ namespace BuildPacker
 {
     internal static class Program
     {
-        private static string arg0;
-        private static DateTime versionDate;
-
-        public static string VersionNumber { get { return Regex.Replace(arg0, @"^\d+\.\d+\.\d+", m => DateTime.Parse(m.Value).ToString("yyyy.M.d")); } }
-        public static string VersionName { get { return "v" + Regex.Replace(arg0, @"^\d+\.\d+\.\d+", m => DateTime.Parse(m.Value).ToString("yyyy.MM.dd")); } }
+        public static string VersionNumber { get; private set; }
+        public static string VersionName { get; private set; }
 
         private static void Main(string[] args)
         {
@@ -22,14 +19,21 @@ namespace BuildPacker
                 Console.WriteLine("Please enter the version number preceded by BuildPacker.");
                 return;
             }
-            if (!Regex.IsMatch(args[0], @"^\d+\.\d+\.\d+\.\d+$")
-                || !DateTime.TryParse(Regex.Match(args[0], @"\d+\.\d+\.\d+").Value, out versionDate))
+
+            DateTime versionDate;
+
+            if (Regex.IsMatch(args[0], @"^\d+\.\d+\.\d+\.\d+$") &&
+                DateTime.TryParse(Regex.Match(args[0], @"^\d+\.\d+\.\d+").Value, out versionDate))
+            {
+                string suffix = Regex.Match(args[0], @".\d+$").Value;
+                VersionNumber = versionDate.ToString("yyyy.M.d") + suffix;
+                VersionName = "v" + versionDate.ToString("yyyy.MM.dd") + suffix;
+            }
+            else
             {
                 Console.WriteLine("Please enter the version number in yyyy.MM.dd.# format.");
                 return;
             }
-
-            arg0 = args[0];
 
             string versionDirPath = Path.GetDirectoryName(Directory.GetCurrentDirectory()) + "\\" + VersionName;
 
@@ -70,10 +74,10 @@ namespace BuildPacker
                     assemblyInfoPaths.Add(assemblyInfoPath);
             }
 
-            string[] gitDiffs = CheckSqlFormat(sqls.ToArray());
-            string[] assemblies = StampVersionNumber(assemblyInfoPaths.ToArray(), VersionNumber);
+            string[] gitDiffs = CheckSqlFormat(sqls);
+            string[] assemblies = StampVersionNumber(assemblyInfoPaths, VersionNumber);
 
-            CollectSql(versionDirPath + @"\SQL", sqls.ToArray());
+            CollectSql(versionDirPath + @"\SQL", sqls);
             MergeSql(versionDirPath + @"\SQL");
             GenerateOutline(versionDirPath, gitDiffs, assemblies);
         }
@@ -81,7 +85,7 @@ namespace BuildPacker
         /// <summary>
         /// 檢查*.sql檔案的編碼及換行字元，若是Big5或是UTF-8-BOM，則轉碼為UTF-8，若是LF或是CR則轉為CRLF，並回傳git diff字串
         /// </summary>
-        private static string[] CheckSqlFormat(FileStatus[] sqls)
+        private static string[] CheckSqlFormat(List<FileStatus> sqls)
         {
             foreach (FileStatus sql in sqls)
             {
@@ -102,39 +106,36 @@ namespace BuildPacker
         /// <summary>
         /// 將異動到的*.sql檔複製並分類到一資料夾裡的子資料夾
         /// </summary>
-        private static void CollectSql(string sqlCollectionPath, FileStatus[] sqls)
+        private static void CollectSql(string sqlCollectionPath, List<FileStatus> sqls)
         {
-            Directory.CreateDirectory(sqlCollectionPath + @"\1.Table");
-            Directory.CreateDirectory(sqlCollectionPath + @"\2.Vw");
-            Directory.CreateDirectory(sqlCollectionPath + @"\3.Fn");
-            Directory.CreateDirectory(sqlCollectionPath + @"\4.Sp");
-            Directory.CreateDirectory(sqlCollectionPath + @"\5.Other");
-
+            Dictionary<string, List<FileStatus>> modifiedFiles = new Dictionary<string, List<FileStatus>>();
             Dictionary<string, List<string>> deletedFiles = new Dictionary<string, List<string>>();
 
             foreach (FileStatus sql in sqls)
             {
+                string type = sql.RelativePath.Split('/')[1];
                 if (sql.Status == "D")
                 {
-                    string type = sql.RelativePath.Split('/')[1];
-
-                    switch (type)
-                    {
-                        case "Table":
-                        case "Function":
-                        case "StoredProcedure":
-                            if (!deletedFiles.ContainsKey(type))
-                                deletedFiles.Add(type, new List<string>());
-                            deletedFiles[type].Add(Path.GetFileNameWithoutExtension(sql.FileName));
-                            break;
-                    }
+                    if (!deletedFiles.ContainsKey(type))
+                        deletedFiles.Add(type, new List<string>());
+                    deletedFiles[type].Add(Path.GetFileNameWithoutExtension(sql.FileName));
                 }
                 else
                 {
                     if (!File.Exists(sql.FullPath)) continue;
 
+                    if (!modifiedFiles.ContainsKey(type))
+                        modifiedFiles.Add(type, new List<FileStatus>());
+                    modifiedFiles[type].Add(sql);
+                }
+            }
+
+            if (modifiedFiles.Count > 0)
+            {
+                foreach (string type in modifiedFiles.Keys)
+                {
                     string destinationPath = string.Empty;
-                    switch (sql.RelativePath.Split('/')[1])
+                    switch (type)
                     {
                         case "Table": destinationPath = sqlCollectionPath + @"\1.Table"; break;
                         case "View": destinationPath = sqlCollectionPath + @"\2.Vw"; break;
@@ -142,40 +143,29 @@ namespace BuildPacker
                         case "StoredProcedure": destinationPath = sqlCollectionPath + @"\4.Sp"; break;
                         default: destinationPath = sqlCollectionPath + @"\5.Other"; break;
                     }
-
-                    File.Copy(sql.FullPath, destinationPath + '\\' + sql.FileName);
+                    Directory.CreateDirectory(destinationPath);
+                    modifiedFiles[type].ForEach(sql => File.Copy(sql.FullPath, destinationPath + '\\' + sql.FileName));
                 }
             }
+
             if (deletedFiles.Count > 0)
             {
                 Directory.CreateDirectory(sqlCollectionPath + @"\0.Before");
                 StringBuilder stringBuilder = new StringBuilder();
-                if (deletedFiles.ContainsKey("StoredProcedure"))
-                    deletedFiles["StoredProcedure"].ForEach(fileName =>
+
+                string[] types = { "StoredProcedure", "Function", "Table" };
+
+                foreach (string type in types)
+                {
+                    if (deletedFiles.ContainsKey(type))
                     {
-                        stringBuilder.AppendLine(string.Format(
-@"IF EXISTS (SELECT 1 FROM dbo.sysobjects where id = object_id(N'[dbo].[{0}]') AND OBJECTPROPERTY(id, N'IsProcedure') = 1)
-	DROP PROCEDURE {0};", fileName));
-                        stringBuilder.AppendLine();
-                    });
-                if (deletedFiles.ContainsKey("Function"))
-                    deletedFiles["Function"].ForEach(fileName =>
-                    {
-                        stringBuilder.AppendLine(string.Format(
-@"IF EXISTS (SELECT 1 FROM sysobjects WHERE id=OBJECT_ID('{0}') AND xtype IN ('FN','IF','TF'))
-	 DROP FUNCTION {0};", fileName));
-                        stringBuilder.AppendLine();
-                    });
-                if (deletedFiles.ContainsKey("Table"))
-                    deletedFiles["Table"].ForEach(fileName =>
-                    {
-                        stringBuilder.AppendLine(string.Format(
-@"IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[{0}]') AND type in (N'U'))
-	DROP TABLE {0};
-DELETE FROM app_table WHERE tablename = '{0}';
-DELETE FROM app_table_field WHERE tablename = '{0}';", fileName));
-                        stringBuilder.AppendLine();
-                    });
+                        deletedFiles[type].ForEach(fileName =>
+                        {
+                            stringBuilder.AppendLine(GetDropScript(type, fileName));
+                            stringBuilder.AppendLine();
+                        });
+                    }
+                }
 
                 File.WriteAllText(sqlCollectionPath + @"\0.Before\prefix.sql", stringBuilder.ToString());
             }
@@ -197,6 +187,32 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName));
                 sw.WriteLine();
                 foreach (string assembly in assemblies)
                     sw.WriteLine(assembly);
+            }
+        }
+
+        private static string GetDropScript(string type, string fileName)
+        {
+            switch (type)
+            {
+                case "StoredProcedure":
+                    return string.Format(
+@"IF EXISTS (SELECT 1 FROM dbo.sysobjects where id = OBJECT_ID(N'[dbo].[{0}]') AND OBJECTPROPERTY(id, N'IsProcedure') = 1)
+    DROP PROCEDURE [dbo].[{0}];", fileName);
+
+                case "Function":
+                    return string.Format(
+@"IF EXISTS (SELECT 1 FROM sysobjects WHERE id = OBJECT_ID(N'[dbo].[{0}]') AND xtype IN ('FN','IF','TF'))
+    DROP FUNCTION [dbo].[{0}];", fileName);
+
+                case "Table":
+                    return string.Format(
+@"IF EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[{0}]') AND type in (N'U'))
+    DROP TABLE [dbo].[{0}];
+DELETE FROM app_table WHERE tablename = '{0}';
+DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
+
+                default:
+                    return string.Empty;
             }
         }
 
@@ -240,7 +256,7 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName));
         /// <summary>
         /// 壓上版號，並回傳dll名稱
         /// </summary>
-        private static string[] StampVersionNumber(string[] assemblyInfoPaths, string versionNumber)
+        private static string[] StampVersionNumber(List<string> assemblyInfoPaths, string versionNumber)
         {
             List<string> modifedAseemblies = new List<string>();
             foreach (string assemblyInfoPath in assemblyInfoPaths)
