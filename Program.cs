@@ -138,10 +138,11 @@ namespace BuildPacker
                     switch (type)
                     {
                         case "Table": destinationPath = sqlCollectionPath + @"\1.Table"; break;
-                        case "View": destinationPath = sqlCollectionPath + @"\2.Vw"; break;
-                        case "Function": destinationPath = sqlCollectionPath + @"\3.Fn"; break;
-                        case "StoredProcedure": destinationPath = sqlCollectionPath + @"\4.Sp"; break;
-                        default: destinationPath = sqlCollectionPath + @"\5.Other"; break;
+                        case "Type": destinationPath = sqlCollectionPath + @"\2.Tp"; break;
+                        case "View": destinationPath = sqlCollectionPath + @"\3.Vw"; break;
+                        case "Function": destinationPath = sqlCollectionPath + @"\4.Fn"; break;
+                        case "StoredProcedure": destinationPath = sqlCollectionPath + @"\5.Sp"; break;
+                        default: destinationPath = sqlCollectionPath + @"\6.Other"; break;
                     }
                     Directory.CreateDirectory(destinationPath);
                     modifiedFiles[type].ForEach(sql => File.Copy(sql.FullPath, destinationPath + '\\' + sql.FileName));
@@ -153,7 +154,7 @@ namespace BuildPacker
                 Directory.CreateDirectory(sqlCollectionPath + @"\0.Before");
                 StringBuilder stringBuilder = new StringBuilder();
 
-                string[] types = { "StoredProcedure", "Function", "Table" };
+                string[] types = { "StoredProcedure", "Function", "View", "Type", "Table" };
 
                 foreach (string type in types)
                 {
@@ -203,6 +204,16 @@ namespace BuildPacker
                     return string.Format(
 @"IF EXISTS (SELECT 1 FROM sysobjects WHERE id = OBJECT_ID(N'[dbo].[{0}]') AND xtype IN ('FN','IF','TF'))
     DROP FUNCTION [dbo].[{0}];", fileName);
+
+                case "View":
+                    return string.Format(
+@"IF EXISTS (SELECT 1 FROM dbo.sysobjects WHERE id = OBJECT_ID(N'[dbo].[{0}]') AND OBJECTPROPERTY(id, N'IsView') = 1)
+    DROP VIEW [dbo].[{0}]", fileName);
+
+                case "Type":
+                    return string.Format(
+@"IF EXISTS (SELECT 1 FROM sys.types st JOIN sys.schemas ss ON st.schema_id = ss.schema_id WHERE st.name = N'{0}' AND ss.name = N'dbo')
+    DROP TYPE [dbo].[{0}]", fileName);
 
                 case "Table":
                     return string.Format(
