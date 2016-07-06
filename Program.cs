@@ -14,26 +14,19 @@ namespace BuildPacker
 
         private static void Main(string[] args)
         {
-            if (args.Length == 0)
-            {
-                Console.WriteLine("Please enter the version number preceded by BuildPacker.");
-                return;
-            }
+            DateTime versionDate = DateTime.Today;
+            int hotfixNumber = 0;
 
-            DateTime versionDate;
-
-            if (Regex.IsMatch(args[0], @"^\d+\.\d+\.\d+\.\d+$") &&
-                DateTime.TryParse(Regex.Match(args[0], @"^\d+\.\d+\.\d+").Value, out versionDate))
-            {
-                string suffix = Regex.Match(args[0], @".\d+$").Value;
-                VersionNumber = versionDate.ToString("yyyy.M.d") + suffix;
-                VersionName = "v" + versionDate.ToString("yyyy.MM.dd") + suffix;
-            }
-            else
+            if (args.Length > 0 && !(Regex.IsMatch(args[0], @"^\d+\.\d+\.\d+\.\d+$") &&
+                    DateTime.TryParse(Regex.Match(args[0], @"^\d+\.\d+\.\d+").Value, out versionDate) &&
+                    int.TryParse(Regex.Match(args[0], @"\d+$").Value, out hotfixNumber)))
             {
                 Console.WriteLine("Please enter the version number in yyyy.MM.dd.# format.");
                 return;
             }
+
+            VersionNumber = string.Format("{0:yyyy.M.d}.{1}", versionDate, hotfixNumber);
+            VersionName = string.Format("v{0:yyyy.MM.dd}.{1}", versionDate, hotfixNumber);
 
             string versionDirPath = Path.GetDirectoryName(Directory.GetCurrentDirectory()) + "\\" + VersionName;
 
@@ -130,23 +123,20 @@ namespace BuildPacker
                 }
             }
 
-            if (modifiedFiles.Count > 0)
+            foreach (string type in modifiedFiles.Keys)
             {
-                foreach (string type in modifiedFiles.Keys)
+                string destinationPath = string.Empty;
+                switch (type)
                 {
-                    string destinationPath = string.Empty;
-                    switch (type)
-                    {
-                        case "Table": destinationPath = sqlCollectionPath + @"\1.Table"; break;
-                        case "Type": destinationPath = sqlCollectionPath + @"\2.Tp"; break;
-                        case "View": destinationPath = sqlCollectionPath + @"\3.Vw"; break;
-                        case "Function": destinationPath = sqlCollectionPath + @"\4.Fn"; break;
-                        case "StoredProcedure": destinationPath = sqlCollectionPath + @"\5.Sp"; break;
-                        default: destinationPath = sqlCollectionPath + @"\6.Other"; break;
-                    }
-                    Directory.CreateDirectory(destinationPath);
-                    modifiedFiles[type].ForEach(sql => File.Copy(sql.FullPath, destinationPath + '\\' + sql.FileName));
+                    case "Table": destinationPath = sqlCollectionPath + @"\1.Table"; break;
+                    case "Type": destinationPath = sqlCollectionPath + @"\2.Tp"; break;
+                    case "View": destinationPath = sqlCollectionPath + @"\3.Vw"; break;
+                    case "Function": destinationPath = sqlCollectionPath + @"\4.Fn"; break;
+                    case "StoredProcedure": destinationPath = sqlCollectionPath + @"\5.Sp"; break;
+                    default: destinationPath = sqlCollectionPath + @"\6.Other"; break;
                 }
+                Directory.CreateDirectory(destinationPath);
+                modifiedFiles[type].ForEach(sql => File.Copy(sql.FullPath, destinationPath + '\\' + sql.FileName));
             }
 
             if (deletedFiles.Count > 0)
