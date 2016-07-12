@@ -175,28 +175,31 @@ namespace BuildPacker
         /// </summary>
         private static void GenerateOutline(string versionDirPath, List<FileStatus> sqls, List<string> assemblyInfoPaths)
         {
-            using (StreamWriter sw = new StreamWriter(versionDirPath + @"\ModifiedFiles.txt", false))
-            {
-                if (sqls.Count > 0)
+            if (sqls.Count > 0 || assemblyInfoPaths.Count > 0)
+                using (StreamWriter sw = new StreamWriter(versionDirPath + @"\ModifiedFiles.txt", false))
                 {
-                    sw.WriteLine("Modified SQL files:");
-                    sw.WriteLine();
-                    sqls.ForEach(sql => sw.WriteLine(string.Format("{0}   {1}", sql.Status, sql.RelativePath)));
-                    sw.WriteLine();
-                }
-                if (assemblyInfoPaths.Count > 0)
-                {
-                    sw.WriteLine("Modified assemblies:");
-                    sw.WriteLine();
-                    foreach (string assemblyInfoPath in assemblyInfoPaths)
+                    if (sqls.Count > 0)
                     {
-                        string[] pathSegments = assemblyInfoPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (pathSegments.Length >= 3)
-                            sw.WriteLine(pathSegments[pathSegments.Length - 3]);
+                        sw.WriteLine("Modified SQL files:");
+                        sw.WriteLine();
+                        sqls.ForEach(sql => sw.WriteLine(string.Format("{0}   {1}", sql.Status, sql.RelativePath)));
+                        sw.WriteLine();
                     }
-                    sw.WriteLine();
+                    if (assemblyInfoPaths.Count > 0)
+                    {
+                        sw.WriteLine("Modified assemblies:");
+                        sw.WriteLine();
+                        foreach (string assemblyInfoPath in assemblyInfoPaths)
+                        {
+                            string[] pathSegments = assemblyInfoPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (pathSegments.Length >= 3)
+                                sw.WriteLine(pathSegments[pathSegments.Length - 3]);
+                        }
+                        sw.WriteLine();
+                    }
                 }
-            }
+            else
+                Directory.Delete(versionDirPath, true);
         }
 
         private static string GetDropScript(string type, string fileName)
