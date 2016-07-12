@@ -9,30 +9,27 @@ namespace BuildPacker
 {
     internal static class Program
     {
-        public static string VersionNumber { get; private set; }
-        public static string VersionName { get; private set; }
-
         private static void Main(string[] args)
         {
             DateTime versionDate = DateTime.Today;
             int hotfixNumber = 0;
 
             if (args.Length > 0 && !(Regex.IsMatch(args[0], @"^\d+\.\d+\.\d+\.\d+$") &&
-                    DateTime.TryParse(Regex.Match(args[0], @"^\d+\.\d+\.\d+").Value, out versionDate) &&
-                    int.TryParse(Regex.Match(args[0], @"\d+$").Value, out hotfixNumber)))
+                DateTime.TryParse(Regex.Match(args[0], @"^\d+\.\d+\.\d+").Value, out versionDate) &&
+                int.TryParse(Regex.Match(args[0], @"\d+$").Value, out hotfixNumber)))
             {
                 Console.WriteLine("Please enter the version number in yyyy.MM.dd.# format.");
                 return;
             }
 
-            VersionNumber = string.Format("{0:yyyy.M.d}.{1}", versionDate, hotfixNumber);
-            VersionName = string.Format("v{0:yyyy.MM.dd}.{1}", versionDate, hotfixNumber);
+            string versionNumber = string.Format("{0:yyyy.M.d}.{1}", versionDate, hotfixNumber);
+            string versionName = string.Format("v{0:yyyy.MM.dd}.{1}", versionDate, hotfixNumber);
 
-            string versionDirPath = Path.GetDirectoryName(Directory.GetCurrentDirectory()) + "\\" + VersionName;
+            string versionDirPath = Path.GetDirectoryName(Directory.GetCurrentDirectory()) + "\\" + versionName;
 
             if (Directory.Exists(versionDirPath))
             {
-                Console.WriteLine("There already exists a folder with the same name: {0}", VersionName);
+                Console.WriteLine("There already exists a folder with the same name: {0}", versionName);
                 Console.WriteLine("Please try again after deleting/renaming the existed one.");
                 return;
             }
@@ -82,7 +79,7 @@ namespace BuildPacker
             if (assemblyInfoPaths.Count == 0)
                 Console.WriteLine("No assemblies were modified.");
             else
-                StampVersionNumber(assemblyInfoPaths, VersionNumber);
+                StampVersionNumber(assemblyInfoPaths, versionNumber);
 
             GenerateOutline(versionDirPath, sqls, assemblyInfoPaths);
         }
