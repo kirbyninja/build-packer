@@ -67,18 +67,30 @@ namespace BuildPacker
                     assemblyInfoPaths.Add(assemblyInfoPath);
             }
 
-            string[] gitDiffs = CheckSqlFormat(sqls);
-            string[] assemblies = StampVersionNumber(assemblyInfoPaths, VersionNumber);
+            if (sqls.Count == 0)
+                Console.WriteLine("No SQL scripts were modified.");
+            else
+            {
+                CheckSqlFormat(sqls);
 
-            CollectSql(versionDirPath + @"\SQL", sqls);
-            MergeSql(versionDirPath + @"\SQL");
-            GenerateOutline(versionDirPath, gitDiffs, assemblies);
+                string sqlCollectionPath = versionDirPath + @"\SQL";
+                CollectSql(sqlCollectionPath, sqls);
+                MergeSql(sqlCollectionPath);
+                Console.WriteLine("All modified SQL scripts have been copied and merged.");
+            }
+
+            if (assemblyInfoPaths.Count == 0)
+                Console.WriteLine("No assemblies were modified.");
+            else
+                StampVersionNumber(assemblyInfoPaths, VersionNumber);
+
+            GenerateOutline(versionDirPath, sqls, assemblyInfoPaths);
         }
 
         /// <summary>
-        /// 檢查*.sql檔案的編碼及換行字元，若是Big5或是UTF-8-BOM，則轉碼為UTF-8，若是LF或是CR則轉為CRLF，並回傳git diff字串
+        /// 檢查*.sql檔案的編碼及換行字元，若是Big5或是UTF-8-BOM，則轉碼為UTF-8，若是LF或是CR則轉為CRLF
         /// </summary>
-        private static string[] CheckSqlFormat(List<FileStatus> sqls)
+        private static void CheckSqlFormat(List<FileStatus> sqls)
         {
             foreach (FileStatus sql in sqls)
             {
@@ -93,7 +105,6 @@ namespace BuildPacker
                 string totalString = Encoding.UTF8.GetString(content);
                 File.WriteAllText(sql.FullPath, Regex.Replace(totalString, @"\r\n?|\n", "\r\n"));
             }
-            return sqls.Select(sql => string.Format("{0}   {1}", sql.Status, sql.RelativePath)).ToArray();
         }
 
         /// <summary>
@@ -165,19 +176,29 @@ namespace BuildPacker
         /// <summary>
         /// 產生一件清單，列出所異動到的*.sql以及組件
         /// </summary>
-        private static void GenerateOutline(string versionDirPath, string[] gitDiffs, string[] assemblies)
+        private static void GenerateOutline(string versionDirPath, List<FileStatus> sqls, List<string> assemblyInfoPaths)
         {
             using (StreamWriter sw = new StreamWriter(versionDirPath + @"\ModifiedFiles.txt", false))
             {
-                sw.WriteLine("Modified SQL files:");
-                sw.WriteLine();
-                foreach (string gitDiff in gitDiffs)
-                    sw.WriteLine(gitDiff);
-                sw.WriteLine();
-                sw.WriteLine("Modified assemblies:");
-                sw.WriteLine();
-                foreach (string assembly in assemblies)
-                    sw.WriteLine(assembly);
+                if (sqls.Count > 0)
+                {
+                    sw.WriteLine("Modified SQL files:");
+                    sw.WriteLine();
+                    sqls.ForEach(sql => sw.WriteLine(string.Format("{0}   {1}", sql.Status, sql.RelativePath)));
+                    sw.WriteLine();
+                }
+                if (assemblyInfoPaths.Count > 0)
+                {
+                    sw.WriteLine("Modified assemblies:");
+                    sw.WriteLine();
+                    foreach (string assemblyInfoPath in assemblyInfoPaths)
+                    {
+                        string[] pathSegments = assemblyInfoPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (pathSegments.Length >= 3)
+                            sw.WriteLine(pathSegments[pathSegments.Length - 3]);
+                    }
+                    sw.WriteLine();
+                }
             }
         }
 
@@ -255,9 +276,9 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
         }
 
         /// <summary>
-        /// 壓上版號，並回傳dll名稱
+        /// 壓上版號
         /// </summary>
-        private static string[] StampVersionNumber(List<string> assemblyInfoPaths, string versionNumber)
+        private static void StampVersionNumber(List<string> assemblyInfoPaths, string versionNumber)
         {
             List<string> modifedAseemblies = new List<string>();
             foreach (string assemblyInfoPath in assemblyInfoPaths)
@@ -267,13 +288,8 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
                 string pattern = @"AssemblyFileVersion\(""\S*""\)";
                 content = Regex.Replace(content, pattern, string.Format(@"AssemblyFileVersion(""{0}"")", versionNumber));
                 File.WriteAllText(assemblyInfoPath, content, Encoding.UTF8);
-
-                string[] pathSegments = assemblyInfoPath.Split(new[] { '\\' }, StringSplitOptions.RemoveEmptyEntries);
-                if (pathSegments.Length >= 3)
-                    modifedAseemblies.Add(pathSegments[pathSegments.Length - 3]);
             }
             Console.WriteLine("All modified assemblies have been stamped the new version number: {0}", versionNumber);
-            return modifedAseemblies.ToArray();
         }
 
         private static T[] SubArray<T>(this T[] data, int startIndex)
