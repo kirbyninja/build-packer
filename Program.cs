@@ -39,29 +39,38 @@ namespace BuildPacker
             List<FileStatus> sqls = new List<FileStatus>();
             string[] diffFiles = Console.In.ReadToEnd().Replace("\r\n", "\n").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-            foreach (string file in diffFiles)
+            try
             {
-                if (!file.Contains('/')) continue;
-
-                FileStatus gitStatus = new FileStatus(file);
-
-                if (gitStatus.RelativePath.ToLower().StartsWith("dbscript"))
+                foreach (string file in diffFiles)
                 {
-                    sqls.Add(gitStatus);
-                    continue;
+                    if (!file.Contains('/')) continue;
+
+                    FileStatus gitStatus = new FileStatus(file);
+
+                    if (gitStatus.RelativePath.ToLower().StartsWith("dbscript"))
+                    {
+                        sqls.Add(gitStatus);
+                        continue;
+                    }
+
+                    string directory = Path.GetDirectoryName(gitStatus.FullPath);
+
+                    while (!string.IsNullOrEmpty(directory) && !File.Exists(directory + @"\Properties\AssemblyInfo.cs"))
+                        directory = Path.GetDirectoryName(directory);
+
+                    if (string.IsNullOrEmpty(directory)) continue;
+
+                    string assemblyInfoPath = directory + @"\Properties\AssemblyInfo.cs";
+
+                    if (!assemblyInfoPaths.Contains(assemblyInfoPath))
+                        assemblyInfoPaths.Add(assemblyInfoPath);
                 }
-
-                string directory = Path.GetDirectoryName(gitStatus.FullPath);
-
-                while (!string.IsNullOrEmpty(directory) && !File.Exists(directory + @"\Properties\AssemblyInfo.cs"))
-                    directory = Path.GetDirectoryName(directory);
-
-                if (string.IsNullOrEmpty(directory)) continue;
-
-                string assemblyInfoPath = directory + @"\Properties\AssemblyInfo.cs";
-
-                if (!assemblyInfoPaths.Contains(assemblyInfoPath))
-                    assemblyInfoPaths.Add(assemblyInfoPath);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                Directory.Delete(versionDirPath, true);
+                return;
             }
 
             if (sqls.Count == 0)
@@ -280,7 +289,6 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
         /// </summary>
         private static void StampVersionNumber(List<string> assemblyInfoPaths, string versionNumber)
         {
-            List<string> modifedAseemblies = new List<string>();
             foreach (string assemblyInfoPath in assemblyInfoPaths)
             {
                 // AssemblyInfo.cs 使用 UTF-8-BOM 編碼

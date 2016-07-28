@@ -12,10 +12,15 @@ namespace BuildPacker
     {
         public FileStatus(string line)
         {
-            Status = line.Substring(0, 1);
-            RelativePath = line.Substring(2);
-            if (RelativePath[0] == '"')
-                RelativePath = Regex.Replace(RelativePath.Replace("\"", ""), @"\\\d{1,3}\\\d{1,3}\\\d{1,3}", ConvertOctalEscapeSequenceToUtf8);
+            if (Regex.IsMatch(line, @"^[A-Z]\t"))
+            {
+                Status = line.Substring(0, 1);
+                RelativePath = line.Substring(2);
+                if (RelativePath[0] == '"')
+                    RelativePath = Regex.Replace(RelativePath.Replace("\"", ""), @"\\\d{1,3}\\\d{1,3}\\\d{1,3}", ConvertOctalEscapeSequenceToUtf8);
+            }
+            else
+                throw new FormatException();
         }
 
         public string FileName { get { return Path.GetFileName(RelativePath); } }
