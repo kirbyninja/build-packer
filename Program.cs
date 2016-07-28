@@ -211,6 +211,12 @@ namespace BuildPacker
                 Directory.Delete(versionDirPath, true);
         }
 
+        /// <summary>
+        /// 回傳卸除相關物件之SQL Script
+        /// </summary>
+        /// <param name="type">目前僅支援：StoredProcedure、Function、View、Type、Table</param>
+        /// <param name="fileName">該檔案名稱，需與SQL物件同名</param>
+        /// <returns></returns>
         private static string GetDropScript(string type, string fileName)
         {
             switch (type)
@@ -300,11 +306,17 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
             Console.WriteLine("All modified assemblies have been stamped the new version number: {0}", versionNumber);
         }
 
+        /// <summary>
+        /// 從這個執行個體擷取子陣列。 子陣列會在指定的位置開始並繼續到結尾。
+        /// </summary>
         private static T[] SubArray<T>(this T[] data, int startIndex)
         {
             return SubArray(data, startIndex, data.Length - startIndex);
         }
 
+        /// <summary>
+        /// 從這個執行個體擷取子陣列。 子陣列起始於指定的位置，並且具有指定的長度。
+        /// </summary>
         private static T[] SubArray<T>(this T[] data, int startIndex, int length)
         {
             T[] result = new T[length];
