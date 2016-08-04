@@ -96,7 +96,7 @@ namespace BuildPacker
         /// <summary>
         /// 檢查*.sql檔案的編碼及換行字元，若是Big5或是UTF-8-BOM，則轉碼為UTF-8，若是LF或是CR則轉為CRLF
         /// </summary>
-        private static void CheckSqlFormat(List<FileStatus> sqls)
+        private static void CheckSqlFormat(IEnumerable<FileStatus> sqls)
         {
             foreach (FileStatus sql in sqls)
             {
@@ -116,7 +116,7 @@ namespace BuildPacker
         /// <summary>
         /// 將異動到的*.sql檔複製並分類到一資料夾裡的子資料夾
         /// </summary>
-        private static void CollectSql(string sqlCollectionPath, List<FileStatus> sqls)
+        private static void CollectSql(string sqlCollectionPath, IEnumerable<FileStatus> sqls)
         {
             Dictionary<string, List<FileStatus>> modifiedFiles = new Dictionary<string, List<FileStatus>>();
             Dictionary<string, List<string>> deletedFiles = new Dictionary<string, List<string>>();
@@ -182,19 +182,20 @@ namespace BuildPacker
         /// <summary>
         /// 產生一件清單，列出所異動到的*.sql以及組件
         /// </summary>
-        private static void GenerateOutline(string versionDirPath, List<FileStatus> sqls, List<string> assemblyInfoPaths)
+        private static void GenerateOutline(string versionDirPath, IEnumerable<FileStatus> sqls, IEnumerable<string> assemblyInfoPaths)
         {
-            if (sqls.Count > 0 || assemblyInfoPaths.Count > 0)
+            if (sqls.Count() > 0 || assemblyInfoPaths.Count() > 0)
                 using (StreamWriter sw = new StreamWriter(versionDirPath + @"\ModifiedFiles.txt", false))
                 {
-                    if (sqls.Count > 0)
+                    if (sqls.Count() > 0)
                     {
                         sw.WriteLine("Modified SQL files:");
                         sw.WriteLine();
-                        sqls.ForEach(sql => sw.WriteLine(string.Format("{0}   {1}", sql.Status, sql.RelativePath)));
+                        foreach (var sql in sqls)
+                            sw.WriteLine(string.Format("{0}   {1}", sql.Status, sql.RelativePath));
                         sw.WriteLine();
                     }
-                    if (assemblyInfoPaths.Count > 0)
+                    if (assemblyInfoPaths.Count() > 0)
                     {
                         sw.WriteLine("Modified assemblies:");
                         sw.WriteLine();
@@ -293,7 +294,7 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
         /// <summary>
         /// 壓上版號
         /// </summary>
-        private static void StampVersionNumber(List<string> assemblyInfoPaths, string versionNumber)
+        private static void StampVersionNumber(IEnumerable<string> assemblyInfoPaths, string versionNumber)
         {
             foreach (string assemblyInfoPath in assemblyInfoPaths)
             {
