@@ -109,7 +109,14 @@ namespace BuildPacker
                     content = content.SubArray(3);
 
                 string totalString = Encoding.UTF8.GetString(content);
-                File.WriteAllText(sql.FullPath, Regex.Replace(totalString, @"\r\n?|\n", "\r\n"));
+
+                // 修正換行字元
+                totalString = Regex.Replace(totalString, @"\r\n?|\n", "\r\n");
+
+                // 刪除選項
+                if (sql.RelativePath.Split('/')[1] == "Table")
+                    totalString = Regex.Replace(totalString, @"INSERT #appTableFieldo .+;\r\n(INSERT #appTableFieldoi .+;\r\n)+(\r\n)*", string.Empty);
+                File.WriteAllText(sql.FullPath, totalString);
             }
         }
 
