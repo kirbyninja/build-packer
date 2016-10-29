@@ -11,6 +11,17 @@ namespace BuildPacker
     {
         private static void Main(string[] args)
         {
+            List<string> diffFiles = new List<string>();
+            string input;
+            while (!string.IsNullOrWhiteSpace(input = Console.ReadLine()))
+                diffFiles.Add(input);
+
+            if (diffFiles.Count <= 0)
+            {
+                Console.WriteLine("No input entered!");
+                return;
+            }
+
             DateTime versionDate = DateTime.Today;
             int hotfixNumber = 0;
 
@@ -37,7 +48,6 @@ namespace BuildPacker
 
             List<string> assemblyInfoPaths = new List<string>();
             List<FileStatus> sqls = new List<FileStatus>();
-            string[] diffFiles = Console.In.ReadToEnd().Replace("\r\n", "\n").Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
             try
             {
