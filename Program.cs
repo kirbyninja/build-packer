@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace BuildPacker
 {
@@ -11,10 +12,7 @@ namespace BuildPacker
     {
         private static void Main(string[] args)
         {
-            List<string> diffFiles = new List<string>();
-            string input;
-            while (!string.IsNullOrWhiteSpace(input = Console.ReadLine()))
-                diffFiles.Add(input);
+            List<string> diffFiles = ReadConsoleInput(3000).ToList();
 
             if (diffFiles.Count <= 0)
             {
@@ -305,6 +303,21 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
                     streamWriter.Write(File.ReadAllText(sqlPath));
                     streamWriter.WriteLine();
                 }
+            }
+        }
+
+        private static IEnumerable<string> ReadConsoleInput(int millisecondsTimeout)
+        {
+            string line = null;
+            Task task = null;
+            while (true)
+            {
+                task = new Task(() => line = Console.ReadLine());
+                task.Start();
+                if (task.Wait(millisecondsTimeout) && !string.IsNullOrWhiteSpace(line))
+                    yield return line;
+                else
+                    break;
             }
         }
 
