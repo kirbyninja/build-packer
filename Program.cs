@@ -306,16 +306,18 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
             }
         }
 
+        /// <summary>
+        /// 讀取Console的輸入字串，超過一定的時間即中斷並回傳結果
+        /// </summary>
+        /// <param name="millisecondsTimeout">等待輸入的時間，以毫秒計</param>
+        /// <returns></returns>
         private static IEnumerable<string> ReadConsoleInput(int millisecondsTimeout)
         {
-            string line = null;
-            Task task = null;
             while (true)
             {
-                task = new Task(() => line = Console.ReadLine());
-                task.Start();
-                if (task.Wait(millisecondsTimeout) && !string.IsNullOrWhiteSpace(line))
-                    yield return line;
+                var task = Task.Factory.StartNew<string>(Console.ReadLine);
+                if (task.Wait(millisecondsTimeout) && !string.IsNullOrWhiteSpace(task.Result))
+                    yield return task.Result;
                 else
                     break;
             }
