@@ -332,8 +332,8 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
             {
                 // AssemblyInfo.cs 使用 UTF-8-BOM 編碼
                 string content = File.ReadAllText(assemblyInfoPath, Encoding.UTF8);
-                string pattern = @"AssemblyFileVersion\(""\S*""\)";
-                content = Regex.Replace(content, pattern, string.Format(@"AssemblyFileVersion(""{0}"")", versionNumber));
+                string pattern = @"(AssemblyFileVersion\("")(\S*)(""\))";
+                content = Regex.Replace(content, pattern, string.Format(@"${{1}}{0}${{3}}", versionNumber));
                 File.WriteAllText(assemblyInfoPath, content, Encoding.UTF8);
             }
             Console.WriteLine("All modified assemblies have been stamped the new version number: {0}", versionNumber);
