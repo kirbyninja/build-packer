@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -96,9 +97,56 @@ namespace BuildPacker
             if (assemblyInfoPaths.Count == 0)
                 Console.WriteLine("No assemblies were modified.");
             else
+            {
                 StampVersionNumber(assemblyInfoPaths, versionNumber);
+                string solutionFileName = Directory.GetFiles(string.Format(@"{0}\SOURCE", Directory.GetCurrentDirectory()), "*.sln").FirstOrDefault();
+                if (BuildSolution(solutionFileName))
+                {
+                    string sourcePath = string.Format(@"{0}\SOURCE\bin", Directory.GetCurrentDirectory());
+                    string targetPath = string.Format(@"{0}\bin", versionDirPath);
+                    CollectAssembly(sourcePath, targetPath, GetModifiedAssemblies(sourcePath, versionNumber));
+                }
+            }
 
             GenerateOutline(versionDirPath, sqls, assemblyInfoPaths);
+        }
+
+        /// <summary>
+        /// 建置方案，回傳是否成功
+        /// </summary>
+        private static bool BuildSolution(string solutionFileName)
+        {
+            if (!File.Exists(solutionFileName))
+            {
+                Console.WriteLine("{0}: No such file or directory", solutionFileName);
+                return false;
+            }
+            var process = new Process();
+            var startInfo = new ProcessStartInfo();
+            startInfo.FileName = string.Format(@"{0}\MSBuild\12.0\Bin\MSBuild.exe", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
+            startInfo.Arguments = string.Format("{0} /nologo /t:Rebuild /p:Configuration=Debug /v:q /clp:ErrorsOnly",
+                solutionFileName);
+            startInfo.UseShellExecute = false;
+            startInfo.RedirectStandardOutput = true;
+            process.StartInfo = startInfo;
+            process.Start();
+            Console.WriteLine("Building the solution [{0}]...", Path.GetFileNameWithoutExtension(solutionFileName));
+            process.WaitForExit();
+            if (process.ExitCode != 0)
+            {
+                using (var sr = process.StandardOutput)
+                {
+                    string error = sr.ReadToEnd();
+                    Console.WriteLine("Build failed with the following eorror message(s):");
+                    Console.WriteLine(error);
+                    return false;
+                }
+            }
+            else
+            {
+                Console.WriteLine("Build succeeded.");
+                return true;
+            }
         }
 
         /// <summary>
@@ -126,6 +174,21 @@ namespace BuildPacker
                     totalString = Regex.Replace(totalString, @"INSERT #appTableFieldo .+;\r\n(INSERT #appTableFieldoi .+;\r\n)+(\r\n)*", string.Empty);
                 File.WriteAllText(sql.FullPath, totalString);
             }
+        }
+
+        /// <summary>
+        /// 將指定的組件複製到一資料夾裡
+        /// </summary>
+        private static void CollectAssembly(string sourcePath, string targetPath, IEnumerable<string> assemblies)
+        {
+            foreach (var assembly in assemblies)
+            {
+                string destFileName = string.Format(@"{0}{1}", targetPath, assembly.Substring(sourcePath.Length));
+                if (!Directory.Exists(Path.GetDirectoryName(destFileName)))
+                    Directory.CreateDirectory(Path.GetDirectoryName(destFileName));
+                File.Copy(assembly, destFileName);
+            }
+            Console.WriteLine("All modified assemblies have been copied.");
         }
 
         /// <summary>
@@ -266,6 +329,21 @@ DELETE FROM app_table_field WHERE tablename = '{0}';", fileName);
 
                 default:
                     return string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 回傳所有和此次壓版相同版號的所有組件
+        /// </summary>
+        /// <param name="versionNumber"></param>
+        /// <returns></returns>
+        private static IEnumerable<string> GetModifiedAssemblies(string sourcePath, string versionNumber)
+        {
+            foreach (var file in Directory.EnumerateFiles(sourcePath, "*.*", SearchOption.AllDirectories))
+            {
+                string extension = Path.GetExtension(file);
+                if ((extension == ".dll" || extension == ".exe") && FileVersionInfo.GetVersionInfo(file).FileVersion == versionNumber)
+                    yield return file;
             }
         }
 
